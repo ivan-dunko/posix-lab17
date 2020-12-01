@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "list.h"
 #include "service.h"
 #include <errno.h>
@@ -24,7 +25,7 @@ Node *createNode(){
     }
 
     res->next = NULL;
-    res->str = NULL;
+    res->str[0] = '\0';
     initMutexSuccessAssertion(&res->mtx, NULL, "createNode");
 
     return res;
@@ -49,7 +50,9 @@ int addElement(List *list, const char *str){
 
     Node *head = list->head;
 
-    new_el->str = new_el_data;
+    strncpy(new_el->str, str, MAX_LEN + 1);
+    new_el->str[MAX_LEN] = '\0';
+
     Node *prev = head->next;
 
     head->next = new_el;
@@ -79,22 +82,26 @@ int destroyList(List *list){
     if (list == NULL){
         return EINVAL;
     }
+    
+    if (list->head == NULL)
+        return SUCCESS_CODE;
 
     //free data
     Node *next;
     Node *head = list->head;
+
     while (head != NULL){
+        lockSuccessAssertion(&head->mtx, "destroyList");
         next = head->next;
-        free(head->str);
+        unlockSuccessAssertion(&head->mtx, "destroyList");
+        //destroy mtx
+        int err = pthread_mutex_destroy(&head->mtx);
+        assertSuccess("destroySuccess", err);
+        
         free(head);
+        
         head = next;
     }
-
-    //destroy mtx
-    int err = pthread_mutex_destroy(&list->head->mtx);
-    assertSuccess("destroySuccess", err);
-    
-    free(&list->head->mtx);
 
     return SUCCESS_CODE;
 }
